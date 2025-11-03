@@ -85,4 +85,4 @@ async function createMarriageImage(one, two) {
 
     await bg.writeAsync(path);
     return path;
-  }
+          }

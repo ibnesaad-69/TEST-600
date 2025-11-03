@@ -105,4 +105,4 @@ const { loadImage, createCanvas } = require("canvas");
  () => fs.unlinkSync(pathImg),
  event.messageID);
 }
-     }
+}

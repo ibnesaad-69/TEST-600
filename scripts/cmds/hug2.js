@@ -1,55 +1,110 @@
-const axios = require('axios');
+const fs = require("fs-extra");
+const path = require("path");
+const axios = require("axios");
 const jimp = require("jimp");
-const fs = require("fs");
 
 module.exports = {
-    config: {
-        name: "hug2",
-        version: "1.0",
-        author: "Ew'r Saim",
-        countDown: 5,
-        role: 0,
-        shortDescription: "Mention someone to send a hug",
-        longDescription: "Mention your love and get a hug card",
-        category: "love",
-        guide: "{pn} @tag"
+  config: {
+    name: "hug2",
+    aliases: ["hugv2"],
+    version: "1.0",
+    author: "Shahadat SAHU (GoatBot Port by ChatGPT)",
+    countDown: 5,
+    role: 0,
+    description: {
+      en: "Generate hug frame with mentioned user"
     },
-
-    onStart: async function ({ message, event, args }) {
-        const mention = Object.keys(event.mentions);
-        if (mention.length === 0) return message.reply("Please mention someone❗");
-        else {
-            const one = event.senderID;
-            const two = mention[0];
-            bal(one, two).then(path => {
-                message.reply({ 
-                    body: "You Are The Best🥰", 
-                    attachment: fs.createReadStream(path) 
-                });
-            }).catch(err => {
-                console.error(err);
-                message.reply("Failed to create hug image.");
-            });
-        }
+    category: "image",
+    guide: {
+      en: "{pn} @mention"
     }
+  },
+
+  onLoad: async () => {
+    const dir = path.join(__dirname, "cache", "canvas");
+    const filePath = path.join(dir, "hugv2.png");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(filePath)) {
+      const imgURL = "https://i.ibb.co/zRdZJzG/1626342271-28-kartinkin-com-p-anime-obnimashki-v-posteli-anime-krasivo-30.jpg";
+      const imgData = (await axios.get(imgURL, { responseType: "arraybuffer" })).data;
+      fs.writeFileSync(filePath, Buffer.from(imgData));
+    }
+  },
+
+  circle: async function (imagePath) {
+    const img = await jimp.read(imagePath);
+    img.circle();
+    return await img.getBufferAsync("image/png");
+  },
+
+  makeImage: async function ({ one, two }) {
+    const dir = path.join(__dirname, "cache", "canvas");
+    const bg = await jimp.read(path.join(dir, "hugv2.png"));
+    const pathImg = path.join(dir, `hug2_${one}_${two}.png`);
+    const avatarOnePath = path.join(dir, `avt_${one}.png`);
+    const avatarTwoPath = path.join(dir, `avt_${two}.png`);
+
+    const getAvatar = async (uid, filePath) => {
+      const url = `https://graph.facebook.com/${uid}/picture?width=512&height=512&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`;
+      const avatarData = (await axios.get(url, { responseType: 'arraybuffer' })).data;
+      fs.writeFileSync(filePath, Buffer.from(avatarData));
+    };
+
+    await getAvatar(one, avatarOnePath);
+    await getAvatar(two, avatarTwoPath);
+
+    const circleOne = await jimp.read(await this.circle(avatarOnePath));
+    const circleTwo = await jimp.read(await this.circle(avatarTwoPath));
+
+    bg.composite(circleOne.resize(100, 100), 370, 40)
+      .composite(circleTwo.resize(100, 100), 330, 150);
+
+    const finalBuffer = await bg.getBufferAsync("image/png");
+    fs.writeFileSync(pathImg, finalBuffer);
+    fs.unlinkSync(avatarOnePath);
+    fs.unlinkSync(avatarTwoPath);
+
+    return pathImg;
+  },
+
+  onStart: async function ({ event, message, usersData }) {
+    const { senderID, mentions } = event;
+    const mention = Object.keys(mentions);
+
+    if (!mention[0]) return message.reply("⚠️ Please mention 1 person!");
+
+    const one = senderID, two = mention[0];
+
+    const captions = [
+      "ভালোবাসা যদি কোনো অনুভূতি হয়, তাহলে তোমার প্রতি আমার অনুভূতি পৃথিবীর সেরা অনুভূতি!🌺",
+      "তুমি আমার জীবনের সেরা অধ্যায়, যেই অধ্যায় বারবার পড়তে ইচ্ছে করে!😘",
+      "তোমার ভালোবাসার মূল্য আমি কিভাবে দেবো, তা আমার জানা নেই, শুধু জানি প্রথম থেকে যে ভাবে ভালোবেসেছিলাম💜 সেভাবেই ভালোবেসে যাবো!🫶",
+      "আমি প্রেমে পড়ার আগে তোমার মায়ায় জড়িয়ে গেছি, যে মায়া নেশার মতো, আমি চাইলে তোমার নেশা কাটিয়ে উঠতে পারি না!💞",
+      "তোমাকে চেয়েছিলাম, আর তোমাকেই চাই, তুমি আমার ভালোবাসা🖤 তুমি আমার বেঁচে থাকার কারণ!🥰",
+      "আমার কাছে তোমাকে ভালোবাসার কোনো সংজ্ঞা নেই, তোমাকে ভালোবেসে যাওয়া হচ্ছে আমার নিশ্চুপ অনুভূতি!😍",
+      "তুমি আমার জীবনের সেই গল্প, যা পড়তে গিয়ে প্রতিবারই নতুন কিছু আবিষ্কার করি!🌻",
+      "আমার মনের গহীনে বাস করা রাজকন্যা তোমাকে অনেক ভালোবাসি।❤️‍🩹",
+      "I feel complete in my life, যখন ভাবি তোমার মতো একটা লক্ষ্মী মানুষ আমার জীবন সঙ্গী!🌺",
+      "যে তোমার ভাবনার সাথে মিলে যায়, তাকে কখনো ছেড়ে দিও না 🤗 এমন মানুষ সবার জীবনে আসে না!😘",
+      "তোমার একটুকরো ভালোবাসায় আমি পুরোটা জীবন কেটে দিতে পারি!💜",
+      "তোমার হাসিতে যেন আমার পৃথিবী থেমে যায়!😊",
+      "তুমি শুধু একজন মানুষ নও, তুমি আমার অনুভব, আমার মন!🖤",
+      "তুমি আমার সবকিছু, আমার আজ, আমার আগামী!❤️‍🔥",
+      "তোমার চোখে চোখ রাখলেই সব ব্যথা ভুলে যাই!😘"
+    ];
+
+    const caption = captions[Math.floor(Math.random() * captions.length)];
+
+    try {
+      const imagePath = await this.makeImage({ one, two });
+      await message.reply({
+        body: caption,
+        attachment: fs.createReadStream(imagePath)
+      });
+      fs.unlinkSync(imagePath);
+    } catch (e) {
+      console.error(e);
+      return message.reply("❌ ছবিটি তৈরি করতে সমস্যা হয়েছে!");
+    }
+  }
 };
-
-async function bal(one, two) {
-    const token = "6628568379%7Cc1e620fa708a1d5696fb991c1bde5662"; // Facebook public token
-
-    let avone = await jimp.read(`https://graph.facebook.com/${one}/picture?width=512&height=512&access_token=${token}`);
-    avone.circle();
-
-    let avtwo = await jimp.read(`https://graph.facebook.com/${two}/picture?width=512&height=512&access_token=${token}`);
-    avtwo.circle();
-
-    let pth = "hug.png";
-    let img = await jimp.read("https://i.ibb.co/r7x6qY3/FB-IMG-16843165540829870-removebg-preview.png");
-
-    img.resize(752, 708)
-       .composite(avone.resize(130, 130), 350, 380)
-       .composite(avtwo.resize(130, 130), 330, 140);
-
-    await img.writeAsync(pth);
-    return pth;
-          }

@@ -1,44 +1,47 @@
-const DIG = require("discord-image-generation");
-const fs = require("fs-extra");
+this.config = {
+	name: "jail",
+	version: "1.0.1",
+	author: {
+		name: "NTKhang",
+		contacts: ""
+	},
+	cooldowns: 5,
+	role: 0,
+	shortDescription: "create image jail",
+	longDescription: "create image jail",
+	category: "image",
+	envGlobal: {
+		tokenFacebook: "6628568379%7Cc1e620fa708a1d5696fb991c1bde5662"
+	},
+	guide: "{p}{n} [@tag|để trống]"
+};
 
 module.exports = {
-  config: {
-    name: "jail",
-    version: "1.1",
-    author: "Samir Thakuri",
-    countDown: 5,
-    role: 0,
-    shortDescription: "Jail image",
-    longDescription: "Jail image",
-    category: "fun",
-    guide: {
-      en: "{pn} @tag"
-    }
-  },
-
-  langs: {
-    vi: {
-      noTag: "Bạn phải tag người bạn muốn tù"
-    },
-    en: {
-      noTag: "You must tag the person you want to jail"
-    }
-  },
-
-  onStart: async function ({ event, message, usersData, args, getLang }) {
-    const uid1 = event.senderID;
-    const uid2 = Object.keys(event.mentions)[0];
-    if (!uid2)
-      return message.reply(getLang("noTag"));
-    const avatarURL1 = await usersData.getAvatarUrl(uid1);
-    const avatarURL2 = await usersData.getAvatarUrl(uid2);
-    const img = await new DIG.Jail().getImage(avatarURL2);
-    const pathSave = `${__dirname}/tmp/${uid2}_Jail.png`;
-    fs.writeFileSync(pathSave, Buffer.from(img));
-    const content = args.join(' ').replace(Object.keys(event.mentions)[0], "");
-    message.reply({
-      body: `${(content || "You're in jail!")} 🚔`,
-      attachment: fs.createReadStream(pathSave)
-    }, () => fs.unlinkSync(pathSave));
-  }
+	config: this.config,
+	start: async function ({ globalGoat, args, message, event }) {
+		const axios = require("axios");
+		const fs = require("fs-extra");
+		const pathSave = __dirname + `/jail${Date.now()}.png`;
+		const { tokenFacebook } = globalGoat.configCommands.envGlobal;
+		const { senderID, mentions } = event;
+		const uid = Object.keys(mentions).length > 0 ? Object.keys(mentions)[0] : senderID;
+		const avatar = `https://graph.facebook.com/${uid}/picture?type=large&width=500&height=500&access_token=${tokenFacebook}`;
+		axios.get(`https://goatbot.up.railway.app/taoanhdep/jail`, {
+			params: {
+				image: avatar,
+				apikey: "ntkhang"
+			},
+			responseType: "arraybuffer"
+		})
+			.then(data => {
+				fs.writeFileSync(pathSave, Buffer.from(data.data));
+				message.reply({
+					attachment: fs.createReadStream(pathSave)
+				}, () => fs.unlinkSync(pathSave));
+			})
+			.catch(error => {
+				const err = JSON.parse(error.response.data.toString());
+				message.reply(`Đã xảy ra lỗi ${err.error}: ${err.message}`);
+			});
+	}
 };

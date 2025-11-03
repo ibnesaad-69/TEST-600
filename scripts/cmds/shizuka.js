@@ -5,12 +5,12 @@ module.exports.config = {
   name: "shizuka",
   version: "1.0",
   role: 0,
-  author: "Ew’r Saim",
-  description: " AI GF Shizuka",
+  author: "Saimx69x",
+  description: "Romantic AI GF Shizuka",
   usePrefix: true,
   guide: "[message] | just type shizuka",
   category: "ai",
-  aliases: ["cuna", "xan"]
+  aliases: ["cuna", "xan", "kolixa", "shizu"]
 };
 
 const API_BASE = "https://xsaim8x-xxx-api.onrender.com/api/shizuka";
@@ -102,4 +102,3 @@ module.exports.onReply = async function ({ api, event, Reply }) {
 
 const wrapper = new GoatWrapper(module.exports);
 wrapper.applyNoPrefix({ allowPrefix: true });
-Write to Only Me

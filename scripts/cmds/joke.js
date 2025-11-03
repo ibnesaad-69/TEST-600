@@ -4,7 +4,7 @@ module.exports = {
   config: {
     name: 'joke',
     version: '1.0',
-    author: 'JV',
+    author: 'Mueid Mursalin Rifat',
     role: 0,
     category: 'fun',
     shortDescription: {
