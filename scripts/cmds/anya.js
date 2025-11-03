@@ -82,4 +82,4 @@ async function getMessage(yourMessage, langCode) {
 		throw new Error(res.data.success);
 
 	return res.data.message;
-}
+    }

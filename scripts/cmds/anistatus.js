@@ -15,7 +15,7 @@ module.exports = {
     role: 0,
     shortDescription: 'anime status',
     longDescription: '',
-    category: 'anime',
+    category: 'media',
     guide: {
       en: '{p}{n}',
     }

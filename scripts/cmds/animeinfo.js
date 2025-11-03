@@ -1,79 +1,40 @@
+const axios = require("axios");
+
+const mahmud = async () => {
+  const base = await axios.get("https://raw.githubusercontent.com/mahmudx7/exe/main/baseApiUrl.json");
+  return base.data.mahmud;
+};
+
 module.exports = {
   config: {
     name: "animeinfo",
-    aliases: [],
+    aliases: ["aniinfo"],
     version: "1.0",
-    author: "AceGun",
-    countDown: 5,
-    role: 0,
-    shortDescription: {
-      en: "Search Anime from Myanimelist"
-    },
-    longDescription: {
-      en: "Search Anime from Myanimelist"
-    },
-    category: "Anime",
-    guide: {
-      en: ""
-    }
+    category: "anime",
+    description: "Anime info fetcher",
+    usage: "af <anime name>",
+    cooldown: 5,
+    author: "MahMUD"
   },
-  onStart: async function ({ api, event, }) {
-    const axios = require("axios");
-    const Scraper = require('mal-scraper');
-  const request = require('request');
-  const fs = require("fs");
 
-let input = event.body;
+  onStart: async function ({ api, event, args }) {
+    if (!args[0]) return api.sendMessage("⚠️ Please enter an anime name", event.threadID, event.messageID);
 
-  var query = input;     query = input.substring(5)
-let data = input.split(" ");
+    try {
+      const url = `${await mahmud()}/api/animeinfo?animeName=${encodeURIComponent(args.join(" "))}`;
+      const res = await axios.get(url);
+      const { formatted_message, data } = res.data;
 
-    let Replaced = query.replace(/ /g, " ");
-  api.sendMessage(`🔎Searching for "${Replaced}"...`, event.threadID, event.messageID);
+      if (!res.data || !data) return api.sendMessage("❌ Not found", event.threadID, event.messageID);
 
-const Anime = await Scraper.getInfoFromName(Replaced)
- .catch(err => {
-                     api.sendMessage("⚠️" + err, event.threadID, event.messageID);
-           }); 
+      api.sendMessage({
+        body: formatted_message,
+        attachment: await global.utils.getStreamFromURL(data.image_url)
+      }, event.threadID, event.messageID);
 
-   console.log(Anime)                
-    let getURL = Anime.picture;
-
-    let ext = getURL.substring(getURL.lastIndexOf(".") + 1);
-
-       if (!Anime.genres[0] || Anime.genres[0] === null) Anime.genres[0] = "None";
-
-    var title = Anime.title;
-var japTitle = Anime.japaneseTitle
-var type = Anime.type;
-var status = Anime.status;
-var premiered = Anime.premiered;
-var broadcast = Anime.broadcast;
-var aired = Anime.aired;
-var producers = Anime.producers;
-var studios = Anime.studios;
-var source = Anime.source;
-var episodes = Anime.episodes;
-var duration = Anime.duration;
-var genres = Anime.genres.join(", ");    
-var popularity = Anime.popularity;
-var ranked = Anime.ranked;
-var score = Anime.score;    
-var rating = Anime.rating;
-var synopsis = Anime.synopsis;
-var url = Anime.url;  
-var endD = Anime.end_date;
-
-
-        let callback = function () {           
- api.sendMessage({
-     body:`╭「Title」: ${title}\n❏Japanese: ${japTitle}\n❏Type: ${type}\n❏Status: ${status}\n❏Premiered: ${premiered}\n❏Broadcast: ${broadcast}\n❏Aired: ${aired}\n❏Producers: ${producers}\n❏Studios: ${studios}\n❏Source: ${source}\n❏Episodes: ${episodes}\n❏Duration: ${duration}\n❏Genres: ${genres}\n❏Popularity: ${popularity}\n❏Ranked: ${ranked}\n❏Score: ${score}\n❏Rating: ${rating}\n╰———————————\n\n❏Synopsis:
-    \n${synopsis}\nLink: ${url}`, 
-          attachment: fs.createReadStream(__dirname + `/tmp/mal.${ext}`)
-          }, event.threadID, () => fs.unlinkSync(__dirname + `/tmp/mal.${ext}`), event.messageID)
-        }
-
- //   }
-        request(getURL).pipe(fs.createWriteStream(__dirname + `/tmp/mal.${ext}`)).on("close", callback)       
+    } catch (e) {
+      console.error(e);
+      api.sendMessage("moye moye🥹", event.threadID, event.messageID);
+    }
   }
 };

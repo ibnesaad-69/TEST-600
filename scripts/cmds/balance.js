@@ -1,195 +1,128 @@
-const { config } = global.GoatBot;
-
 module.exports = {
     config: {
         name: "balance",
         aliases: ["bal", "money"],
-        version: "1.6.9",
-        author: "Nazrul",
-        countDown: 1,
+        version: "1.5",
+        author: "Mueid Mursalin Rifat",
+        countDown: 5,
         role: 0,
-        description: "View, transfer, request, or add/delete money",
-        category: "economy",
-        guide: { en: `
-            {pn}: help to view cmds guide
-            {pn}: view your balance
-            {pn} <@tag>: view the balance of the tagged person
-            {pn} transfer <@tag>/<UID>/<reply> <amount>: transfer money
-            {pn} request <amount>: request money from the admin
-            {pn} add <@tag>/<UID>/<reply> <amount>: admin adds money
-            {pn} delete <@tag>/<UID>/<reply> <amount>: admin deletes money` }
+        description: {
+            en: "✅ | View your balance or the balance of a tagged person. Also, send or request money."
+        },
+        category: "utility",
+        guide: {
+            en: "   {pn}: View your balance $"
+                + "\n   {pn} <@tag>: View the balance of the tagged person "
+                + "\n   {pn} send [amount] @mention: Send money to someone "
+                + "\n   {pn} request [amount] @mention: Request money from someone "
+        }
+    },
+
+    formatMoney: function (amount) {
+        if (!amount) return "0";
+        if (amount >= 1e12) return (amount / 1e12).toFixed(1) + 'T';
+        if (amount >= 1e9) return (amount / 1e9).toFixed(1) + 'B';
+        if (amount >= 1e6) return (amount / 1e6).toFixed(1) + 'M';
+        if (amount >= 1e3) return (amount / 1e3).toFixed(1) + 'K';
+        return amount.toString();
     },
 
     onStart: async function ({ message, usersData, event, args, api }) {
-        const senderID = event.senderID;
-        const allowedUIDs = [config.adminBot, ...config.adminBot];
+        let targetUserID = event.senderID;
+        let isSelfCheck = true;
 
-        const formatMoney = (num) => {
-            const units = ["", "K", "M", "B", "T", "Q", "Qi", "Sx", "Sp", "Oc", "N", "D"];
-            let unit = 0;
-            let number = Number(num);
-
-            while (number >= 1000 && unit < units.length - 1) {
-                number /= 1000;
-                unit++;
-            }
-
-            return `${number.toFixed(2)}${units[unit]}`;
-        };
-
-        const isValidAmount = (value) => {
-            const num = Number(value);
-            return !isNaN(num) && num > 0;
-        };
-
-        const getTargetUID = () => {
-            if (event.messageReply) return event.messageReply.senderID;
-            if (Object.keys(event.mentions).length > 0) return Object.keys(event.mentions)[0];
-            if (!isNaN(args[1])) return args[1];
-            return null;
-        };
-
-        const getAmount = () => args[args.length - 1];
-
-        if (args[0] === "help") {
-            return message.reply(`1.${config.prefix} balance: View your balance.
-2. ${config.prefix} balance <@tag>: View another user's balance.
-3. ${config.prefix} balance transfer <UID> <amount>: Transfer money.
-4. ${config.prefix} balance request <amount>: Request money from admin.
-5. ${config.prefix} balance add <UID> <amount>: Admin adds money.
-6. ${config.prefix} balance delete <UID> <amount>: Admin deletes money.`);
+        if (event.messageReply) {
+            targetUserID = event.messageReply.senderID;
+            isSelfCheck = false;
+        } 
+        else if (event.mentions && Object.keys(event.mentions).length > 0) {
+            targetUserID = Object.keys(event.mentions)[0];
+            isSelfCheck = false;
         }
 
-        if (args[0] === "add") {
-            if (!allowedUIDs.includes(senderID)) {
-                return message.reply("❌ You don't have permission to use this command.");
-            }
-
-            const targetUID = getTargetUID();
-            const amount = getAmount();
-
-            if (!targetUID) {
-                return message.reply("❌ Could not identify the user. Make sure to tag, reply, or provide a valid UID.");
-            }
-            if (!isValidAmount(amount)) {
-                return message.reply("❌ Please provide a valid positive amount.");
-            }
-
-            const userData = await usersData.get(targetUID) || { money: "0" };
-            const userName = userData.name || "Unknown User";
-            const newBalance = (Number(userData.money) + Number(amount)).toString();
-
-            await usersData.set(targetUID, { money: newBalance });
-
-            return message.reply(`✅ Successfully added ${formatMoney(amount)}$ to the balance of ${userName} (UID: ${targetUID}).`);
+        if (args.length > 0 && (args[0] === "send" || args[0] === "request")) {
+            return await this.handleTransaction({ message, usersData, event, args, api });
         }
 
-        if (args[0] === "delete") {
-            if (!allowedUIDs.includes(senderID)) {
-                return message.reply("❌ You don't have permission to use this command.");
-            }
+        const userData = await usersData.get(targetUserID);
+        const money = userData?.money || 0;
+        const formattedMoney = this.formatMoney(money);
 
-            const targetUID = getTargetUID();
-            const amount = getAmount();
+        if (isSelfCheck) {
+            return message.reply(` Your balance is ${formattedMoney} 💲`);
+        } 
+        else {
+            return message.reply(` $BALANCE INFORMATION$ \n ${userData?.name || "User"} has ${formattedMoney} $ !? \n Have a good day! `);
+        }
+    },
 
-            if (!targetUID) {
-                return message.reply("❌ Could not identify the user. Make sure to tag, reply, or provide a valid UID.");
-            }
-            if (!isValidAmount(amount)) {
-                return message.reply("❌ Please provide a valid positive amount.");
-            }
+    handleTransaction: async function ({ message, usersData, event, args, api }) {
+        const command = args[0].toLowerCase();
+        const amount = parseInt(args[1]);
+        const { senderID, threadID, mentions, messageReply } = event;
+        let targetID;
 
-            const userData = await usersData.get(targetUID) || { money: "0" };
-            const userName = userData.name || "Unknown User";
-            const currentBalance = Number(userData.money);
-
-            if (currentBalance < Number(amount)) {
-                return message.reply("❌ The target does not have enough money to delete.");
-            }
-
-            const newBalance = (currentBalance - Number(amount)).toString();
-
-            await usersData.set(targetUID, { money: newBalance });
-
-            return message.reply(`✅ Successfully deleted ${formatMoney(amount)}$ from the balance of ${userName} (UID: ${targetUID}).`);
+        if (isNaN(amount) || amount <= 0) {
+            return api.sendMessage(`❌ | Invalid amount! Usage:\n{pn} send [amount] @mention\n{pn} request [amount] @mention`, threadID);
         }
 
-        if (args[0] === "transfer") {
-            const targetUID = getTargetUID();
-            const amount = getAmount();
-
-            if (!targetUID) {
-                return message.reply("❌ Could not identify the user. Make sure to tag, reply, or provide a valid UID.");
+        if (messageReply) {
+            targetID = messageReply.senderID;
+        } else {
+            const mentionKeys = Object.keys(mentions);
+            if (mentionKeys.length === 0) {
+                return api.sendMessage("❌ | Mention someone to send/request money!", threadID);
             }
-            if (targetUID === senderID) {
-                return message.reply("❌ You cannot transfer money to yourself.");
-            }
-            if (!isValidAmount(amount)) {
-                return message.reply("❌ Please provide a valid positive amount.");
-            }
-
-            const senderData = await usersData.get(senderID) || { money: "0" };
-            const recipientData = await usersData.get(targetUID) || { money: "0" };
-            const recipientName = recipientData.name || "Unknown User";
-
-            const senderBalance = Number(senderData.money);
-            const recipientBalance = Number(recipientData.money);
-
-            if (senderBalance < Number(amount)) {
-                return message.reply("❌ You don't have enough money to transfer.");
-            }
-
-            const updatedSenderBalance = (senderBalance - Number(amount)).toString();
-            const updatedRecipientBalance = (recipientBalance + Number(amount)).toString();
-
-            await usersData.set(senderID, { money: updatedSenderBalance });
-            await usersData.set(targetUID, { money: updatedRecipientBalance });
-
-            return message.reply(`✅ Successfully transferred ${formatMoney(amount)}$ to ${recipientName} (UID: ${targetUID}).`);
+            targetID = mentionKeys[0];
         }
 
-        if (args[0] === "request") {
-            const amount = args[1];
-
-            if (!isValidAmount(amount)) {
-                return message.reply("❌ Please enter a valid positive amount.");
-            }
-
-            const data = await usersData.get(senderID);
-            const name = data.name || "Darling";
-
-            const adminIDs = ["100049220893428"];
-            const threadIDs = ["9191391594224159", "7272501799469344"];
-
-            const requestMessage = `📢 User ${name} (${senderID}) has requested ${formatMoney(amount)}$.`;
-
-            for (const adminID of adminIDs) {
-                api.sendMessage(requestMessage, adminID);
-            }
-            for (const threadID of threadIDs) {
-                api.sendMessage(requestMessage, threadID);
-            }
-
-            return message.reply(`✅ Your request for ${formatMoney(amount)}$ has been sent to the admins.`);
+        if (!targetID || targetID === senderID) {
+            return api.sendMessage("❌ | You cannot send/request money to yourself!", threadID);
         }
 
-        if (Object.keys(event.mentions).length > 0 || event.messageReply || !isNaN(args[0])) {
-            const targetUID = getTargetUID();
+        if (command === "send") {
+            const senderData = await usersData.get(senderID);
+            const receiverData = await usersData.get(targetID);
 
-            if (!targetUID) {
-                return message.reply("❌ Could not identify the user. Use UID instead.");
+            if (!senderData || !receiverData) {
+                return api.sendMessage("❌ | User not found.", threadID);
             }
 
-            const userData = await usersData.get(targetUID) || { money: "0", name: "Unknown User" };
-            const userName = userData.name || "Unknown User";
-            const userMoney = userData.money || "0";
+            if (senderData.money < amount) {
+                return api.sendMessage("❌ | You don't have enough money!", threadID);
+            }
 
-            return message.reply(`💰 ${userName} (UID: ${targetUID}) has ${formatMoney(userMoney)}$ (${userMoney}$).`);
+            await usersData.set(senderID, { ...senderData, money: senderData.money - amount });
+            await usersData.set(targetID, { ...receiverData, money: receiverData.money + amount });
+
+            const senderName = await usersData.getName(senderID);
+            const receiverName = await usersData.getName(targetID);
+
+            api.sendMessage(`✅ | ${senderName} sent you ${this.formatMoney(amount)} $ ! 💸`, targetID);
+            return api.sendMessage(`✅ | You successfully sent ${this.formatMoney(amount)} $ to ${receiverName}`, threadID);
         }
 
-        const userData = await usersData.get(senderID) || { money: "0", name: "Unknown User" };
-        const userName = userData.name || "Unknown User";
+        if (command === "request") {
+            const ownerID = "123456789"; // 🔹 Owner's Facebook ID  
+            const ownerGroupID = "987654321"; // 🔹 Specific Group ID of the Owner  
 
-        return message.reply(`💸 ${userName}, you have ${formatMoney(userData.money)}$ (${userData.money}$).`);
+            const requesterName = await usersData.getName(senderID);
+            const requestMessage = `📩 | ${requesterName} is requesting ${this.formatMoney(amount)} $ from you! 💵\n✅ To send: Use "{pn} send ${amount} @${requesterName}".`;
+
+            api.sendMessage(requestMessage, ownerID, (err) => {
+                if (err) {
+                    // 🔹 If not sent via Inbox, send it to the Group Chat  
+                    api.sendMessage(requestMessage, ownerGroupID, (err2) => {
+                        if (!err2) {
+                            api.sendMessage(`✅ | Your request has been sent to the Owner's Group Thread! ✅`, senderID);
+                        } else {
+                            api.sendMessage(`❌ | Sorry, your request couldn't be sent to the Owner! 😞`, senderID);
+                        }
+                    });
+                } else {
+                    api.sendMessage(`✅ | Your request has been sent to the Owner! ✅`, senderID);
+                }
+            });
+        }
     }
 };

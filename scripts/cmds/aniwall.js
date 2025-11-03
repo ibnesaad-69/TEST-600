@@ -5,71 +5,85 @@ const path = require("path");
 module.exports = {
   config: {
     name: "aniwall",
-    version: "1.0.2",
-    author: "ChatGPT Updated",
+    version: "1.0.0",
+    author: "kshitiz",
     role: 0,
-    countDown: 5,
+    countDown: 10,
     shortDescription: {
-      en: "Get anime wallpapers (random only)"
+      en: "Search for anime wallpapers"
     },
-    category: "anime",
+    category: "image",
     guide: {
-      en: "{prefix}aniwall -<number_of_images_optional>"
+      en: "{prefix}aniwall <subcommand> -<number of images>"
     }
   },
 
-  onStart: async function ({ api, event, args }) {
-    const threadID = event.threadID;
-    const messageID = event.messageID;
-
-    // Jodi kono subcommand na deya hoy, args[0] ke "random" set koro
-    if (!args[0]) {
-      args[0] = "random";
-    }
-
-    const subcommand = args[0].toLowerCase();
-
-    // Sudhu "random" accept korbo, onno kono subcommand accept korbo na
-    if (subcommand !== "random") {
-      return api.sendMessage(`❌ Invalid subcommand! Use: random or just "aniwall"`, threadID, messageID);
-    }
-
-    const apiCategory = "sfw/waifu";
-
-    // Number of images default 1
-    let numberImages = 1;
-    if (args[1] && args[1].startsWith("-")) {
-      const num = parseInt(args[1].slice(1));
-      if (!isNaN(num) && num > 0) numberImages = num;
-    }
-
-    const cacheDir = path.join(__dirname, "cache");
-    await fs.ensureDir(cacheDir);
-
-    const attachments = [];
-
+  onStart: async function ({ api, event, args, usersData }) {
     try {
-      for(let i = 0; i < numberImages; i++) {
-        const res = await axios.get(`https://api.waifu.pics/${apiCategory}`);
-        const imageUrl = res.data.url;
+      if (args.length === 0) {
+      
+        return api.sendMessage(this.config.guide.en, event.threadID, event.messageID);
+      }
 
-        // Download image
-        const imgPath = path.join(cacheDir, `wallpaper_${i+1}.jpg`);
-        const imgData = await axios.get(imageUrl, { responseType: "arraybuffer" });
-        await fs.writeFile(imgPath, imgData.data);
-        attachments.push(fs.createReadStream(imgPath));
+      let apiUrl = "";
+      let numberSearch = 1;
+
+      const subCommand = args.shift();
+
+      switch (subCommand) {
+        case "random":
+          apiUrl = "https://aniwall-kshtiz.vercel.app/random";
+          break;
+        case "wedding":
+          apiUrl = "https://aniwall-kshtiz.vercel.app/wedding";
+          break;
+        case "valentine":
+          apiUrl = "https://aniwall-kshtiz.vercel.app/valentine";
+          break;
+        default:
+          return api.sendMessage(`Invalid subcommand.`, event.threadID, event.messageID);
+      }
+
+      if (args.length > 0) {
+        const arg = args[0];
+        if (arg.startsWith("-")) {
+          numberSearch = parseInt(arg.substring(1)) || 1;
+        } else {
+          return api.sendMessage(`Invalid argument format.`, event.threadID, event.messageID);
+        }
+      }
+
+      const res = await axios.get(apiUrl);
+      const data = res.data;
+
+      if (!data || !data.urls || data.urls.length === 0) {
+        return api.sendMessage(`No wallpapers found.`, event.threadID, event.messageID);
+      }
+
+      const imgData = [];
+
+      for (let i = 0; i < Math.min(numberSearch, data.urls.length); i++) {
+        const imageUrl = data.urls[i];
+
+        try {
+          const imgResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+          const imgPath = path.join(__dirname, 'cache', `${i + 1}.jpg`);
+          await fs.outputFile(imgPath, imgResponse.data);
+          imgData.push(fs.createReadStream(imgPath));
+        } catch (error) {
+          console.error(error);
+        }
       }
 
       await api.sendMessage({
-        body: `📌 Anime Wallpapers (random)`,
-        attachment: attachments
-      }, threadID, messageID);
+        attachment: imgData,
+        body: data.animeName || "- Wallpaper for you -"
+      }, event.threadID, event.messageID);
 
-      await fs.emptyDir(cacheDir);
-
-    } catch (err) {
-      console.error(err);
-      return api.sendMessage(`❌ Error fetching wallpapers, please try again later.`, threadID, messageID);
+      await fs.remove(path.join(__dirname, 'cache'));
+    } catch (error) {
+      console.error(error);
+      return api.sendMessage(`An error occurred. Please try again later.`, event.threadID, event.messageID);
     }
   }
 };

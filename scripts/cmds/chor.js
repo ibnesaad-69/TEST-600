@@ -50,4 +50,4 @@ async function createKidnapImage(id) {
   const outputPath = `kidnap_${Date.now()}.png`;
   await background.writeAsync(outputPath);
   return outputPath;
-  }
+}
