@@ -1,46 +1,56 @@
 const axios = require('axios');
-const fs = require('fs');
+const fs = require('fs-extra');
+const FormData = require('form-data');
+const path = __dirname + '/cache/artify.jpg';
 
 module.exports = {
   config: {
     name: "art",
+    aliases: [],
     version: "1.0",
-    author: "Who's Deku", //nihan
+    author: "𝐂𝐘𝐁𝐄𝐑 ☢️_𖣘 -𝐁𝐎𝐓 ⚠️ 𝑻𝑬𝑨𝑴_ ☢️-edit Saim",
     countDown: 5,
     role: 0,
-    shortDescription: {
-      en: ""
-    },
-    longDescription: {
-      en: "al"
-    },
-    category: "system",
-  },
-  
-  onStart: async function ({ api, event, args }) {
-    const { threadID, messageID } = event;
-    if (event.type == "message_reply") {
-      var t = event.messageReply.attachments[0].url;
-    } else {
-      var t = args.join(" ");
+    shortDescription: "Apply AI art style (anime)",
+    longDescription: "Reply to a photo to apply an AI anime art style.",
+    category: "image",
+    guide: {
+      en: "{pn} [reply image]",
     }
+  },
+
+  onStart: async function ({ message, event, api }) {
+    const { messageReply, threadID, messageID } = event;
+
+    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
+      return message.reply("❌ অনুগ্রহ করে কোনো একটি ছবির রিপ্লাই দিন।");
+
+    const url = messageReply.attachments[0].url;
+
     try {
-      api.sendMessage("Generating...", threadID, messageID);
-      const r = await axios.get("https://free-api.ainz-sama101.repl.co/canvas/toanime?", {
-        params: {
-          url: encodeURI(t)
-        }
+      const res = await axios.get(url, { responseType: "arraybuffer" });
+      fs.writeFileSync(path, Buffer.from(res.data, "utf-8"));
+
+      const form = new FormData();
+      form.append("image", fs.createReadStream(path));
+
+      const apiRes = await axios.post(
+        "https://art-api-97wn.onrender.com/artify?style=anime",
+        form,
+        { headers: form.getHeaders(), responseType: "arraybuffer" }
+      );
+
+      fs.writeFileSync(path, apiRes.data);
+
+      await message.reply({
+        body: "✅ AI artify করা হয়েছে!",
+        attachment: fs.createReadStream(path)
       });
-      const result = r.data.result.image_data;
-      let ly = __dirname + "/cache/anime.png";
-      let ly1 = (await axios.get(result, {
-        responseType: "arraybuffer"
-      })).data;
-      fs.writeFileSync(ly, Buffer.from(ly1, "utf-8"));
-      return api.sendMessage({ attachment: fs.createReadStream(ly) }, threadID, () => fs.unlinkSync(ly), messageID);
-    } catch (e) {
-      console.log(e.message);
-      return api.sendMessage("Something went wrong: " + e.message, threadID, messageID);
+
+      fs.unlinkSync(path);
+    } catch (err) {
+      console.error(err);
+      message.reply("❌ কিছু একটা ভুল হয়েছে। আবার চেষ্টা করুন।");
     }
   }
 };

@@ -1,50 +1,52 @@
-const axios = require('axios');
-const tinyurl = require('tinyurl');
+const { GoatWrapper } = require("fca-liane-utils");
+const axios = require("axios");
 
 module.exports = {
-	config: {
-		name: "4k",
-		aliases: ["4k", "remini"],
-		version: "1.0",
-		author: "JARiF",
-		countDown: 15,
-		role: 0,
-		longDescription: "Upscale your image.",
-		category: "image",
-		guide: {
-			en: "{pn} reply to an image"
-		}
-	},
+  config: {
+    name: "4k",
+    aliases: ["upscale"],
+    version: "1.1",
+    role: 0,
+    author: "dipto",
+    countDown: 5,
+    longDescription: "Upscale images to 4K resolution.",
+    category: "image",
+    guide: {
+      en: "${pn} reply to an image to upscale it to 4K resolution."
+    }
+  },
 
-	onStart: async function ({ message, args, event, api }) {
-		const getImageUrl = () => {
-			if (event.type === "message_reply") {
-				const replyAttachment = event.messageReply.attachments[0];
-				if (["photo", "sticker"].includes(replyAttachment?.type)) {
-					return replyAttachment.url;
-				} else {
-					throw new Error("┐⁠(⁠￣⁠ヘ⁠￣⁠)⁠┌ | Must reply to an image.");
-				}
-			} else if (args[0]?.match(/(https?:\/\/.*\.(?:png|jpg|jpeg))/g) || null) {
-				return args[0];
-			} else {
-				throw new Error("(⁠┌⁠・⁠。⁠・⁠)⁠┌ | Reply to an image.");
-			}
-		};
+  onStart: async function ({ message, event }) {
+    if (
+      !event.messageReply ||
+      !event.messageReply.attachments ||
+      !event.messageReply.attachments[0] ||
+      event.messageReply.attachments[0].type !== "photo"
+    ) {
+      return message.reply("📸 Please reply to an image to upscale it.");
+    }
 
-		try {
-			const imageUrl = await getImageUrl();
-			const shortUrl = await tinyurl.shorten(imageUrl);
+    const imgurl = encodeURIComponent(event.messageReply.attachments[0].url);
+    const upscaleUrl = `https://aryan-xyz-upscale-api-phi.vercel.app/api/upscale-image?imageUrl=${imgurl}&apikey=ArYANAHMEDRUDRO`;
 
-			message.reply("ƪ⁠(⁠‾⁠.⁠‾⁠“⁠)⁠┐ | Please wait...");
+    message.reply("🔄 Processing your image, please wait...", async (err, info) => {
+      try {
+        const response = await axios.get(upscaleUrl);
+        const imageUrl = response.data.resultImageUrl;
+        const attachment = await global.utils.getStreamFromURL(imageUrl, "upscaled.png");
 
-			const response = await axios.get(`https://www.api.vyturex.com/upscale?imageUrl=${shortUrl}`);
-			const resultUrl = response.data.resultUrl;
+        message.reply({
+          body: "✅ Your 4K upscaled image is ready!",
+          attachment
+        });
 
-			message.reply({ body: "<⁠(⁠￣⁠︶⁠￣⁠)⁠> | Image Enhanced.", attachment: await global.utils.getStreamFromURL(resultUrl) });
-		} catch (error) {
-			message.reply("┐⁠(⁠￣⁠ヘ⁠￣⁠)⁠┌ | Error: " + error.message);
-			// Log error for debugging: console.error(error);
-		}
-	}
+        message.unsend(info.messageID);
+      } catch (error) {
+        console.error("Upscale Error:", error.message);
+        message.reply("❌ Error occurred while upscaling the image.");
+      }
+    });
+  }
 };
+const wrapper = new GoatWrapper(module.exports);
+wrapper.applyNoPrefix({ allowPrefix: true });
