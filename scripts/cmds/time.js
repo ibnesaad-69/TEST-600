@@ -1,97 +1,45 @@
-const { GoatWrapper } = require("fca-liane-utils");
-const Canvas = require("canvas");
 const axios = require("axios");
-const moment = require("moment-timezone");
 const fs = require("fs");
 const path = require("path");
 
 module.exports = {
   config: {
     name: "time",
-    aliases: [],
     version: "1.0",
-    author: "Ew'r Saim",
+    author: "Saimx69x",
     role: 0,
-    category: "utility",
-    guide: "{p}time"
+    countDown: 3,
+    shortDescription: "Fetches stylish time card from API",
+    category: "tools",
+    guide: "/time - Get current neon time card"
   },
 
-  // 🔤 Convert normal text to Unicode Math Bold (𝐀𝐛𝐜 𝟏𝟐𝟑)
-  toMathBold: function (text) {
-    const offset = {
-      upper: 0x1D400 - 65,
-      lower: 0x1D41A - 97,
-      number: 0x1D7CE - 48
-    };
-
-    return text.split("").map(char => {
-      const code = char.charCodeAt(0);
-      if (code >= 65 && code <= 90) return String.fromCodePoint(offset.upper + code);
-      if (code >= 97 && code <= 122) return String.fromCodePoint(offset.lower + code);
-      if (code >= 48 && code <= 57) return String.fromCodePoint(offset.number + code);
-      return char;
-    }).join("");
-  },
-
-  onStart: async function ({ api, event, message }) {
+  onStart: async ({ message }) => {
     try {
-      const now = moment().tz("Asia/Dhaka");
-      const time = now.format("hh:mm A");
-      const date = now.format("dddd, D MMMM, YYYY");
+      const wait = await message.reply("⚡ Fetching time card...");
 
-      const imageUrl = "https://files.catbox.moe/ldvtg3.jpg"; // 🐱 তোমার catbox image link
-      const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
+      const apiUrl = "https://xsaim8x-xxx-api.onrender.com/api/time";
+      const response = await axios.get(apiUrl, { responseType: "stream" });
 
-      const bgImage = await Canvas.loadImage(response.data);
-      const canvas = Canvas.createCanvas(bgImage.width, bgImage.height);
-      const ctx = canvas.getContext("2d");
+      const tmpDir = path.join(__dirname, "cache");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-      // 🔤 Convert text to Unicode Bold
-      const boldTime = module.exports.toMathBold(time);
-      const boldDate = module.exports.toMathBold(date);
+      const filePath = path.join(tmpDir, `time_card_${Date.now()}.png`);
+      const writer = fs.createWriteStream(filePath);
 
-      // 🎨 Text style adjustments
-      ctx.fillStyle = "#FF1744"; // Deep neon red (adjusted color)
-      ctx.font = "50px Sans-serif"; // Updated font size to 50px
-      ctx.textAlign = "center";
-      ctx.strokeStyle = "black"; // black outline for text
-      ctx.lineWidth = 3; // thicker stroke for better contrast
+      response.data.pipe(writer);
 
-      // 🖼️ Draw background
-      ctx.drawImage(bgImage, 0, 0);
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      });
 
-      // 🕓 Draw time (adjusted positioning)
-      const timeYPosition = canvas.height / 2 - 40; // Move the time slightly up
-      ctx.strokeText(boldTime, canvas.width / 2, timeYPosition);
-      ctx.fillText(boldTime, canvas.width / 2, timeYPosition);
+      await message.unsend(wait.messageID);
+      return message.reply({ attachment: fs.createReadStream(filePath) });
 
-      // 📅 Draw date (adjusted positioning)
-      const dateYPosition = canvas.height / 2 + 40; // Move the date slightly down
-      ctx.strokeText(boldDate, canvas.width / 2, dateYPosition);
-      ctx.fillText(boldDate, canvas.width / 2, dateYPosition);
-
-      // 💾 Save image
-      const filePath = path.join(__dirname, "timeimage.png");
-      const buffer = canvas.toBuffer("image/png");
-      fs.writeFileSync(filePath, buffer);
-
-      // 📤 Send image
-      api.sendMessage(
-        {
-          body: "> 🇧🇩 Time in Bangladesh:",
-          attachment: fs.createReadStream(filePath)
-        },
-        event.threadID,
-        () => fs.unlinkSync(filePath),
-        event.messageID
-      );
     } catch (err) {
-      console.error(err);
-      api.sendMessage("❌ an error occurred!", event.threadID, event.messageID);
+      console.error("Time command error:", err.message);
+      return message.reply("❌ Failed to fetch time card.");
     }
   }
 };
-
-// Wrapping the module to apply no prefix
-const wrapper = new GoatWrapper(module.exports);
-wrapper.applyNoPrefix({ allowPrefix: true });

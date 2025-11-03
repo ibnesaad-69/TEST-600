@@ -1,10 +1,8 @@
-// Required libraries import kora hocche
 const axios = require("axios");
 const moment = require("moment-timezone");
 const Canvas = require("canvas");
 const fs = require("fs-extra");
 
-// Font register kora hocche weather image er text render er jonno
 Canvas.registerFont(__dirname + "/assets/font/BeVietnamPro-SemiBold.ttf", {
 	family: "BeVietnamPro-SemiBold"
 });
@@ -12,12 +10,10 @@ Canvas.registerFont(__dirname + "/assets/font/BeVietnamPro-Regular.ttf", {
 	family: "BeVietnamPro-Regular"
 });
 
-// Fahrenheit theke Celsius e convert korar function
 function convertFtoC(F) {
 	return Math.floor((F - 32) / 1.8);
 }
 
-// Time ke Asia/Ho_Chi_Minh timezone e format kore return kore
 function formatHours(hours) {
 	return moment(hours).tz("Asia/Ho_Chi_Minh").format("HH[h]mm[p]");
 }
