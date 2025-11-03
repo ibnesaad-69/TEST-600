@@ -1,61 +1,51 @@
-const axios = require("axios");
-const fs = require("fs-extra");
+const { get } = require('axios');
+const fs = require('fs');
+
+const url = "https://ai-tools.replit.app";
+const cachePath = __dirname + '/cache/sdxl.png';
 
 module.exports = {
-  config: {
-    name: "sdxl",
-    aliases: [],
-    version: "1.0",
-    author: "nexo_here",
-    countDown: 10,
-    role: 0,
-    shortDescription: "Generate image with SDXL Light",
-    longDescription: "Generate AI image using SDXL Light API with various styles",
-    category: "AI-IMAGE",
-    guide: {
-      en: "{pn} <prompt> | <style>\n\nAvailable styles:\n- 3D Model\n- Analog Film\n- Anime\n- Cinematic\n- Comic Book"
-    }
-  },
+		config: {
+				name: 'sdxl',
+				version: '2.1.0',
+				author: "Deku", // Do not change credits
+				countDown: 5,
+				role: 0,
+				shortDescription: 'Generate image in sdxl',
+				longDescription: {
+						en: ''
+				},
+				category: 'image',
+				guide: {
+						en: '[prompt | style]'
+				}
+		},
 
-  onStart: async function ({ api, event, args }) {
-    const input = args.join(" ").split("|");
-    const prompt = input[0]?.trim();
-    const style = input[1]?.trim();
+		onStart: async function({ api, event, args }) {
+				function sendMessage(msg) {
+						api.sendMessage(msg, event.threadID, event.messageID);
+				}
 
-    if (!prompt || !style) {
-      return api.sendMessage("❌ | Please provide both prompt and style.\nExample:\n.sdxllight a dragon flying over a city | Anime", event.threadID, event.messageID);
-    }
+				const styleList = `•——[Style list]——•\n\n1. Cinematic\n2. Photographic\n3. Anime\n4. Manga\n5. Digital Art\n6. Pixel art\n7. Fantasy art\n8. Neonpunk\n9. 3D Model`;
 
-    const validStyles = ["3D Model", "Analog Film", "Anime", "Cinematic", "Comic Book"];
-    if (!validStyles.includes(style)) {
-      return api.sendMessage("❌ | Invalid style provided. Available styles:\n- " + validStyles.join("\n- "), event.threadID, event.messageID);
-    }
+				if (!args[0]) return sendMessage('Missing prompt and style\n\n' + styleList);
 
-    const msg = await api.sendMessage("⏳ | Generating image...", event.threadID);
+				const [prompt, style] = args.join(" ").split("|").map(item => item.trim());
 
-    try {
-      const response = await axios({
-        method: "GET",
-        url: "https://www.arch2devs.ct.ws/api/sdxl-light",
-        params: {
-          prompt: prompt,
-          style: style,
-          model: "sdxl"
-        },
-        responseType: "arraybuffer"
-      });
+				if (!prompt) return sendMessage('Missing prompt!');
+				if (!style) return sendMessage('Missing style!\n\n' + styleList);
 
-      const path = __dirname + `/cache/sdxllight_${event.senderID}.png`;
-      fs.writeFileSync(path, Buffer.from(response.data, "binary"));
+				try {
+						const response = await get(`${url}/sdxl?prompt=${encodeURIComponent(prompt)}&styles=${encodeURIComponent(style)}`, {
+								responseType: 'arraybuffer'
+						});
 
-      api.sendMessage({
-        body: `✅ | Here's your image:\nPrompt: ${prompt}\nStyle: ${style}`,
-        attachment: fs.createReadStream(path)
-      }, event.threadID, () => fs.unlinkSync(path), msg.messageID);
+						fs.writeFileSync(cachePath, Buffer.from(response.data, "utf8"));
 
-    } catch (error) {
-      console.error(error);
-      api.sendMessage("❌ | Failed to generate image. Please try again later.", event.threadID, msg.messageID);
-    }
-  }
+						return sendMessage({ attachment: fs.createReadStream(cachePath, () => fs.unlinkSync(cachePath)) });
+				} catch (error) {
+						console.error('Error generating image:', error.message);
+						return sendMessage(error.message);
+				}
+		}
 };
